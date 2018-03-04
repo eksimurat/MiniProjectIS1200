@@ -15,6 +15,7 @@
 
 
 
+// Variable Declarations
 
 uint8_t GAME [128*32] = {0};
 char textbuffer[4][16];
@@ -25,7 +26,6 @@ unsigned int position_y = 0;
 unsigned int DIFFICULTY = 2;
 unsigned int shoot_timer = 1;
 unsigned int high_score = 0;
-uint8_t score;
 unsigned int timeoutcount = 0;
 volatile int* E = (volatile int*) 0xbf886100;
 volatile int* PortE = (volatile int*) 0xbf886110;
@@ -37,7 +37,14 @@ int cache_update = 0;
 int game_status = 0;
 int menu_status = 0;
 int page_status = 0;
+int buttons;
+const int resethigh [3] = {0};
 char c;
+uint8_t score;
+uint8_t ship_x = 0;
+uint8_t ship_y = 0;
+uint8_t random = 0;
+
 
 void print_highscore(unsigned int line , unsigned int n){
     if(line < 0 || line >= 4)
@@ -48,7 +55,7 @@ void print_highscore(unsigned int line , unsigned int n){
     int num_char;
     int i = 0;
     
-    while(number > 0){
+    while(number > 0){ //count digits
         number = number / 10;
         count = count + 1;
     }
@@ -58,22 +65,20 @@ void print_highscore(unsigned int line , unsigned int n){
     
     for (i = 7 + (count - 1)/2; i >= 7 - (count - 1)/2; i--){
         if(n > 0){
-        num_char = n % 10;
-        num_char = num_char + 0x30;
-        n = n / 10;
+        num_char = n % 10; //filters 1 digit
+        num_char = num_char + 0x30; //turn to ascii code
+        n = n / 10; //to iterate through the next digit
         textbuffer[line][i] = num_char;
         }
     }
 }
 
-int getsw( void ){
+int getsw( void ){ // get switch values and shift
     return (0x00000000 | ((PORTD & (0xF00)) >> 8 ));
 }
 
-uint8_t ship_x = 0;
-uint8_t ship_y = 0;
-uint8_t random = 0;
-void delay(int k){
+
+void delay(int k){ //delay by k/1000 seconds close enough to it
     int j = 0;
     while (k > 0){
         for (j = 0; j < 7500; j++){
@@ -84,14 +89,14 @@ void delay(int k){
 void put_ship(int i){
     int j;
     random += 5;
-    j = (uint8_t) (128 +(32 * i)) + ((TMR2 * 128) +TMR2 * random) % 32;
+    j = (uint8_t) (128 +(32 * i)) + ((TMR2 * 128) +TMR2 * random) % 32; //randomizer x value
     SHIPS[i][0] = 2;
-    SHIPS[i][1] = j < 128 ? j : MAX_X + j;
-    SHIPS[i][2] = (uint8_t) (((TMR2 * 32 ) % 20) * TMR2) % 20;
+    SHIPS[i][1] = j < 128 ? j : MAX_X + j; //see if it is out of bounds x axis
+    SHIPS[i][2] = (uint8_t) (((TMR2 * 32 ) % 20) * TMR2) % 20; //randomizer y value
     
 }
 
-void intro(void){
+void intro(void){ //3 ships ships[ship number][x val, y val]
     INTRO_SHIPS[0][0] = -15;
     INTRO_SHIPS[0][1] = 2;
     INTRO_SHIPS[1][0] = -8;
@@ -103,8 +108,8 @@ void intro(void){
     int count = 0;
     while(count < 125){
         for(i = 0; i < 3; i++){
-            print_ship(INTRO_SHIPS[i][0],INTRO_SHIPS[i][1],Batman);
-            INTRO_SHIPS[i][0]++;
+            print_ship(INTRO_SHIPS[i][0],INTRO_SHIPS[i][1],Batman); //prints it
+            INTRO_SHIPS[i][0]++; //move to the left by 1 bit each time
         }
         
         display_game(0, GAME);
@@ -120,47 +125,37 @@ void intro(void){
     
 }
 
-// DONT MESS WITH THIS PART... || WORK IN PROGRESS... || SOMEHOW...
+
 void user_isr( void ){
-    if(shoot_timer == 0){
-    if(IFS(2) > 0  ){
-        timeoutcount++;
-        //TMR2 = 0x0;
-        IFSCLR(0) = 0x00000100;
-    }
-    if(timeoutcount == 20){
-        shoot_timer = 1;
-        timeoutcount = 0;
-    }
-    }
+    
 }
 
 void ship_check(void){
     int i;
     for (i = 1; i < DIFFICULTY + 1; i++ ){
         if ((bullets[0][1] != 0) & (bullets[0][1] + 4 > SHIPS[i][1] & bullets[0][1] < SHIPS[i][1] + 18)&
-            (bullets[0][2] + 4 > SHIPS[i][2] - 2 & bullets[0][2] - 2< SHIPS[i][2] + 12)){
-            SHIPS[i][0] -= 2;
-            SHIPS[i][1] = 255;
-            SHIPS[i][2] = 255;
-            bullets[0][0] = 0;
+            (bullets[0][2] + 4 > SHIPS[i][2] - 2 & bullets[0][2] - 2< SHIPS[i][2] + 12)){ //if enemy ship gets hit by a bullet
+            SHIPS[i][0] -= 2;   //makes ship disappear
+            SHIPS[i][1] = 255; //move out of GAME array
+            SHIPS[i][2] = 255; //move out of GAME array
+            bullets[0][0] = 0; //remove bullet
             bullets[0][1] = 0;
             bullets[0][2] = 0;
-            shoot_timer = 1;
+            shoot_timer = 1; //reset shoot penalty
             delay(1);
-            high_score += 2;
+            high_score += 2; //add score
         }
         if (((main_ship_x + 18  >= SHIPS[i][1] ) & (main_ship_y  >= SHIPS[i][2] & main_ship_y + 16 < SHIPS[i][2] + 18))
             ||
-            ((main_ship_x + 18  >= SHIPS[i][1] ) & (main_ship_y + 4 >= SHIPS[i][2] & main_ship_y < SHIPS[i][2] + 4 ))){
-            hit = 1;
-            SHIPS[i][0] -= 2;
-            SHIPS[i][1] = 255;
+            ((main_ship_x + 18  >= SHIPS[i][1] ) & (main_ship_y + 4 >= SHIPS[i][2] & main_ship_y < SHIPS[i][2] + 4 ))){ //if player gets hit by an enemy
+            hit = 1; //if hit
+            SHIPS[i][0] -= 2; //remove enemy ship
+            SHIPS[i][1] = 255; //move out of GAME array
             SHIPS[i][2] = 255;
-            main_ship_health--;
-            if (cache_update == 0){
+            main_ship_health--; //reduce player health by 1
+            if (cache_update == 0){ //if in health mode
                 *PortE = *PortE >> 1;
-            }else if (cache_update == 1){
+            }else if (cache_update == 1){ //if in score mode
                 PortE_cache = PortE_cache >> 1;
             }
             delay(1);
@@ -169,18 +164,18 @@ void ship_check(void){
 }
 void led_update (void){
     slide_switch = getsw();
-    if ((slide_switch & 0x1) == 1){
+    if ((slide_switch & 0x1) == 1){ //if in score mode
         if (cache_update == 0){
             PortE_cache = *PortE;
         }
-        *PortE = 0;
-        *PortE = high_score;
-        cache_update = 1;
+        *PortE = 0; //reset
+        *PortE = high_score; //put port e as score
+        cache_update = 1; //set it to 1 to indicate
     }
-    if (((slide_switch & 0x1) != 1) & cache_update == 1){
-        *PortE = 0;
-        *PortE = PortE_cache;
-        cache_update = 0;
+    if (((slide_switch & 0x1) != 1) & cache_update == 1){ //if switch pulled down
+        *PortE = 0; //reset
+        *PortE = PortE_cache; //put health
+        cache_update = 0; //set it to 0 to indicate
     }
 }
 
@@ -194,10 +189,10 @@ void enemy_spawn(void){
                     SHIPS[i][1] = SHIPS[i][1] - 1;
                     SHIPS[i][2] = SHIPS[i][2];
                 }
-                if (SHIPS[i][1] < -5){
-                    SHIPS[i][0] = 0;
-                    SHIPS[i][1] = -20;
-                    SHIPS[i][2] = -20;
+                if (SHIPS[i][1] < -5){ //if ship over the edge of left side
+                    SHIPS[i][0] = 0; // remove ship
+                    SHIPS[i][1] = -20; //put out of GAME array
+                    SHIPS[i][2] = -20; //put out of GAME array
                 }else{
                     print_ship(SHIPS[i][1],SHIPS[i][2],Enemy);
                 }
@@ -208,9 +203,9 @@ void put_bullet(uint8_t X, uint8_t Y){
     int i;
     for (i = 0; i < 2; i++){
         if (bullets [i][0] == 0){
-            bullets [i][0] = 1;
-            bullets [i][1] = X + 16;
-            bullets [i][2] = Y + 2;
+            bullets [i][0] = 1; //spawn it
+            bullets [i][1] = X + 16; //put in front of ship
+            bullets [i][2] = Y + 2; //center it towards the main ship y value
             break;
         }
     }
@@ -219,10 +214,10 @@ void print_bullet(void){
     int i = 0;
     for (i = 0; i < 2; i++){
         
-        if (bullets [i][0] == 1){
-            bullets [i][1]++;
-            if (bullets[i][1] > 120){
-                bullets[i][0] = 0;
+        if (bullets [i][0] == 1){ //if bullet exist
+            bullets [i][1]++; //move bit by bit to the right
+            if (bullets[i][1] > 120){ //if outside of right side
+                bullets[i][0] = 0; //reset the bullet
                 bullets[i][1] = 0;
                 bullets[i][2] = 0;
             }
@@ -234,7 +229,7 @@ void print_bullet(void){
     }
 }
 
-int getbtns(void){
+int getbtns(void){ //get values and shift it
     
     return (0x00000000 | ((PORTD & 0xE0) >> 5));
 }
@@ -246,7 +241,7 @@ uint8_t power(uint8_t n, unsigned int k){
     }
     return (n - 1);
 }
-void led_setup (){
+void led_setup (){ //not shown binary but amount of LED on correspond to the health left.
     k = power(2, main_ship_health);
     *PortE = k;
 }
@@ -264,24 +259,25 @@ move(int buttons){
     }
     
     timeoutcount++;
-    AD1CON1 |= (0x1 << 1);
+    AD1CON1 |= (0x1 << 1); //potentiometer sampling
     while(!(AD1CON1 & (0x1 << 1)));
     while(!(AD1CON1 & 0x1));
     int i = 0;
-    if (timeoutcount == 10){
+    if (timeoutcount == 10){ //penalty for missing shot
         shoot_timer = 1;
         timeoutcount = 0;
     }
-    main_ship_y = (ADC1BUF0 / 1023.0) * 24;
+    //analog value converted for ship movement
+    main_ship_y = (ADC1BUF0 / 1023.0) * 24; //y position of ship
     
     if(buttons != 0 ){
         if (buttons  == 2 & main_ship_x < MAX_X - 16) {
-            main_ship_x++;
+            main_ship_x++; //move forward if not at edge of right side
         }
         if (buttons  == 4 & main_ship_x > 0) {
-            main_ship_x--;
+            main_ship_x--; //move backwards if not at edge of left side
         }
-        if (buttons  == 1 & shoot_timer == 1) {
+        if (buttons  == 1 & shoot_timer == 1) { //shoot bullet
             put_bullet(main_ship_x, main_ship_y);
             shoot_timer = 0;
         }
@@ -302,7 +298,7 @@ void init(void){
     spi_init();
     
     /* Analog input */
-    AD1PCFG = ~(1 << 2);
+    AD1PCFG = ~(1 << 2); //potentiometer
     TRISBSET = (1 << 2);
     AD1CHS = (0x2 << 16);
     AD1CON1 = (0x4 << 8) | (0x7 << 5);
@@ -313,6 +309,7 @@ void init(void){
     
     /* Turn on ADC */
     AD1CON1 |= (0x1 << 15);
+    
     /* Timer */
     T2CON = 0x0;
     TMR2 = 0x0;
@@ -336,10 +333,21 @@ void init(void){
     
     spi_send_recv();
     display_init();
-    //enable_interrupt();
     
 }
 
+
+/*
+ i2c1con
+ bit 5 = acknowledge data(ACKDT)
+ bit 4 = acknowledge sequence enable(ACKEN)
+ bit 3 = receive enable(RCEN)
+ bit 2 = stop condition enable(PEN)
+ bit 1 = restart condition(RSEN)
+ bit 0 = start condition enable(SEN)
+ */
+////////////////////////////////////////////////////////////////////
+// The code until the next commented line (I2C register functions) has been taken from the Github page https://github.com/is1200-example-projects/hello-temperature
 /* Wait for I2C bus to become idle */
 void i2c_idle() {
     while(I2C1CON & 0x1F || I2C1STAT & (1 << 14)); //TRSTAT
@@ -396,28 +404,30 @@ void i2c_stop() {
     I2C1CONSET = 1 << 2; //PEN
     i2c_idle();
 }
-
+////////////////////////////////////////////////////////////////////////
 
 void write_highscores(unsigned int* data){
     int i, j;
     
+    //Continue reading the flag and sending the eeprom address to the bus until eeprom responds
     do {
             i2c_start();
     } while(!i2c_send((EEPROM_ADDR) << 1));
     
-    //i2c_send((EEPROM_ADDR | 0x2));
     
-    i2c_send((0x00));
-    i2c_send((0x01));
+    //access address
+    i2c_send((0x00)); //high
+    i2c_send((0x01)); //low
     
-        for(i = 0; i <3; i++){
+    
+        for(i = 0; i <3; i++){ //access 3 data addresses
             for(j = 0; j < 4; j++){
                 i2c_send((*(data + i) & (0x0ff << j*8)));
                 
             }
             }
-    /* Send stop condition */
-    i2c_stop();
+    
+    i2c_stop(); // Send stop condition
         
 }
                          
@@ -435,11 +445,11 @@ void read_highscores(unsigned int* data){
         i2c_start();
     } while(!i2c_send(((EEPROM_ADDR) << 1) | 1) );
     
-    for(i = 0; i <3; i++)  {
+    for(i = 0; i <3; i++)  { //read it byte by byte
         for(j = 0; j < 4; j++){
           score = i2c_recv();
-          *(data + i) |= (score << j*8);
-            i2c_ack();
+          *(data + i) |= (score << j*8); //change the address of the pointer
+            i2c_ack(); //change the address of the eeprom
                      }
     }
     /* Send stop condition */
@@ -450,7 +460,6 @@ void read_highscores(unsigned int* data){
         
 
 void check_highscore(){
-    //read_highscores(high_scores);
     int i;
     for(i = 0; i < 3; i++){
     if(high_score >= high_scores[i]){

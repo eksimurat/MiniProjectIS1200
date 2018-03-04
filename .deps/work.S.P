@@ -1,0 +1,2 @@
+work.S.o: work.S
+work.S :

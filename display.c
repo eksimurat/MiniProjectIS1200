@@ -23,6 +23,7 @@
 #define DISPLAY_TURN_OFF_VDD (PORTFSET = 0x40)
 #define DISPLAY_TURN_OFF_VBAT (PORTFSET = 0x20)
 
+//
 void spi_init(void){
     SYSKEY = 0xAA996655;  /* Unlock OSCCON, step 1 */
     SYSKEY = 0x556699AA;  /* Unlock OSCCON, step 2 */
@@ -62,11 +63,13 @@ void spi_init(void){
     SPI2CONSET = 0x8000;
 }
 
+// quick delay for screen initiliazing for timing it right to not deplete the life of the screen
 void quicksleep(int cyc) {
     int i;
     for(i = cyc; i > 0; i--);
 }
 
+// Spi data sending function
 uint8_t spi_send_recv(uint8_t data) {
     while(!(SPI2STAT & 0x08));
     SPI2BUF = data;
@@ -74,12 +77,13 @@ uint8_t spi_send_recv(uint8_t data) {
     return SPI2BUF;
 }
 
+// Default Lab code
 void display_init(void) {
-    DISPLAY_CHANGE_TO_COMMAND_MODE;
+    DISPLAY_CHANGE_TO_COMMAND_MODE; //clear and set to be able to send command
     quicksleep(10);
-    DISPLAY_ACTIVATE_VDD;
+    DISPLAY_ACTIVATE_VDD; //turn on power
     quicksleep(1000000);
-    
+    //reset 0 then reset 1
     spi_send_recv(0xAE);
     DISPLAY_ACTIVATE_RESET;
     quicksleep(10);
@@ -91,18 +95,21 @@ void display_init(void) {
     
     spi_send_recv(0xD9);
     spi_send_recv(0xF1);
-    
+    //turn on vcc
     DISPLAY_ACTIVATE_VBAT;
     quicksleep(10000000);
     
+    //make columns as x axis long side, make rows as y axis short side
     spi_send_recv(0xA1);
     spi_send_recv(0xC8);
     
     spi_send_recv(0xDA);
     spi_send_recv(0x20);
     
-    spi_send_recv(0xAF);
+    spi_send_recv(0xAF); //Display on command
 }
+
+// Call whenever you go into game or don't change the line that has been printed before
 void clear_textbuffer(void){
     int i, j;
     for(i = 0; i < 4; i++){
@@ -111,6 +118,9 @@ void clear_textbuffer(void){
         }
     }
 }
+
+// Default Lab code
+//put letters in textbuffer and spaces if blank
 void display_string(int line, char *s) {
     int i;
     if(line < 0 || line >= 4)
@@ -130,26 +140,27 @@ void display_string(int line, char *s) {
 void display_game(int x, const uint8_t *data) {
     int i, j;
     
-    for(i = 0; i < 4; i++) {
-        DISPLAY_CHANGE_TO_COMMAND_MODE;
+    for(i = 0; i < 4; i++) { //iterates through row
+        DISPLAY_CHANGE_TO_COMMAND_MODE; //set to recieve command
         
-        spi_send_recv(0x22);
-        spi_send_recv(i);
+        spi_send_recv(0x22); //page command
+        spi_send_recv(i); //page number
         
-        spi_send_recv(x & 0xF);
-        spi_send_recv(0x10 | ((x >> 4) & 0xF));
+        spi_send_recv(x & 0xF); //column low nibble
+        spi_send_recv(0x10 | ((x >> 4) & 0xF)); //column high nibble
         
         DISPLAY_CHANGE_TO_DATA_MODE;
-        if (hit == 1){
-            for(j = 0; j < 128; j++)
-                spi_send_recv(~data[i*128 + j]);
+        
+        if (hit == 1){ //if ship hit by enemy
+            for(j = 0; j < 128; j++) //iterates through columns
+                spi_send_recv(~data[i*128 + j]); //inverts the color
         } else {
-            for(j = 0; j < 128; j++)
-                spi_send_recv(data[i*128 + j]);
+            for(j = 0; j < 128; j++) //iterates through columns
+                spi_send_recv(data[i*128 + j]); //put the buffer into screen
         }
         
-        if (game_status == 0){
-            for(j = 0; j < 16; j++) {
+        if (game_status == 0){ //if in menu
+            for(j = 0; j < 16; j++) { //iterates through the column of letters
                 c = textbuffer[i][j];
                 if(c & 0x80)
                     continue;
@@ -168,16 +179,16 @@ print_ship(int x,int y,const uint8_t *data){
     short offset = 0;
     short junction = 0;
     int k = 0;
-    if (y > 0) { offset = y / 8; }
-    junction =  y % 8;
+    if (y > 0) { offset = y / 8; } //y value
+    junction =  y % 8; //how many pixels in the next page
     if (junction > 0){
-        for (j = 0; j < 16; j++ ){
-            GAME [(offset*128 + x) + j ] |= (~data[j]) << (y - offset * 8);
-            GAME [((offset + 1)*128 + x) + j ] |=  (((uint8_t)(~data[j]) >> (8 - junction)) & (power(2,(junction))));
+        for (j = 0; j < 16; j++ ){ //iterate through ship bits width
+            GAME [(offset*128 + x) + j ] |= (~data[j]) << (y - offset * 8); //if between pages show top part
+            GAME [((offset + 1)*128 + x) + j ] |=  (((uint8_t)(~data[j]) >> (8 - junction)) & (power(2,(junction)))); //if between pages show bottom part
         }
     } else {
         for(j = 0; j < 16; j++)
-            GAME [(offset*128 + x) + j ]|= (~data[j] << (y - offset * 8)) ;
+            GAME [(offset*128 + x) + j ]|= (~data[j] << (y - offset * 8)) ; //if not between pages print it normally
     }
 }
 

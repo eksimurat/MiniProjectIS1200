@@ -19,15 +19,14 @@
 
 
 
-int buttons;
-const int resethigh [3] = {0};
+
 
 main(void){
     
     init();
-    game_status = -1;
+    game_status = -1; //intro status
     intro();
-    game_status = 0;
+    game_status = 0; //menu status
     slide_switch = getsw();
     read_highscores(high_scores);
     while(1){
@@ -39,8 +38,8 @@ main(void){
                     write_highscores(resethigh);
                     read_highscores(high_scores);
                 }
-                clear_textbuffer();
-                clear_screen();
+                clear_textbuffer(); //set textbuffer all 0
+                clear_screen(); //set GAME buffer all 0
                 display_string(2, "     !PLAY!    ");
                 display_game(0, GAME);
                 delay(10);
@@ -79,7 +78,7 @@ main(void){
                     menu_status = 1;
                 }
             }
-            while(menu_status == 1){
+            while(menu_status == 1){ //high scores list status
                 clear_screen();
                 clear_textbuffer();
                 int i;
@@ -96,8 +95,8 @@ main(void){
             }
         }
         
-        while(game_status == 1 & main_ship_health > 0){
-            while(slide_switch >> 3 != 1 & main_ship_health > 0){
+        while(game_status == 1 & main_ship_health > 0){ //while still playing
+            while(slide_switch >> 3 != 1 & main_ship_health > 0){ // while not paused
                 slide_switch = getsw();
                 buttons = getbtns();
                 move(buttons);
@@ -122,7 +121,7 @@ main(void){
                     led_update();
                 }
             }
-            if(main_ship_health == 0){
+            if(main_ship_health == 0){ //if dead
                 check_highscore();
                 gameOver();
                 delay(1000);
